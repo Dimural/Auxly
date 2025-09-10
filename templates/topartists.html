@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Melodify - Top Artists</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      min-height: 100vh;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .back-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 25px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .main-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .page-title {
+      text-align: center;
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 1.2rem;
+      margin-bottom: 3rem;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .time-options {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .time-option {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      text-decoration: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 25px;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .time-option:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .time-option.active {
+      background: rgba(255, 215, 0, 0.3);
+      border-color: rgba(255, 215, 0, 0.5);
+    }
+
+    .artists-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+
+    .artist-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    .artist-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .artist-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .artist-card:hover::before {
+      left: 100%;
+    }
+
+    .rank {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 215, 0, 0.9);
+      color: #333;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    .artist-icon {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      margin: 1rem auto;
+      display: block;
+      object-fit: cover;
+      border: 3px solid rgba(255, 215, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .artist-icon:hover {
+      transform: scale(1.05);
+      border-color: rgba(255, 215, 0, 0.8);
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+    }
+
+    .fallback-icon {
+      font-size: 4rem;
+      text-align: center;
+      margin: 1rem 0;
+      color: #ffd700;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: rgba(255, 215, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 1rem auto;
+      border: 3px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .artist-name {
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 1rem;
+      color: white;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .floating-elements {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .floating-element {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) scale(1); opacity: 0.3; }
+      50% { transform: translateY(-20px) scale(1.5); opacity: 0.8; }
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 1rem;
+      }
+      
+      .page-title {
+        font-size: 2rem;
+      }
+      
+      .artists-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .time-options {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="floating-elements">
+    <div class="floating-element" style="top: 10%; left: 5%; animation-delay: 0s;"></div>
+    <div class="floating-element" style="top: 20%; right: 10%; animation-delay: 1s;"></div>
+    <div class="floating-element" style="top: 60%; left: 15%; animation-delay: 2s;"></div>
+    <div class="floating-element" style="top: 80%; right: 20%; animation-delay: 3s;"></div>
+    <div class="floating-element" style="top: 40%; left: 80%; animation-delay: 4s;"></div>
+  </div>
+
+  <header class="header">
+    <a href="/menu" class="back-btn">← Back to Menu</a>
+  </header>
+
+  <main class="main-content">
+    <h1 class="page-title">🎤 Your Top Artists</h1>
+    <p class="subtitle">The voices that shape your musical journey</p>
+
+    <div class="time-options">
+      <a href="/top-artists?range=short_term" class="time-option {% if time_range == 'short_term' %}active{% endif %}">🎧 Last Month</a>
+      <a href="/top-artists?range=medium_term" class="time-option {% if time_range == 'medium_term' %}active{% endif %}">📅 This Year</a>
+      <a href="/top-artists?range=long_term" class="time-option {% if time_range == 'long_term' %}active{% endif %}">📊 All Time</a>
+    </div>
+
+    <div class="artists-grid">
+      {% for artist in artists %}
+        <div class="artist-card" style="animation-delay: {{ loop.index * 0.1 }}s">
+          <div class="rank">#{{ loop.index }}</div>
+          {% if artist.image %}
+            <img src="{{ artist.image }}" alt="{{ artist.name }}" class="artist-icon">
+          {% else %}
+            <div class="fallback-icon">🎤</div>
+          {% endif %}
+          <h3 class="artist-name">{{ artist.name }}</h3>
+        </div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <script>
+    // Add staggered animation delay
+    document.querySelectorAll('.artist-card').forEach((card, index) => {
+      card.style.animationDelay = `${index * 0.1}s`;
+    });
+
+    // Add click animation
+    document.querySelectorAll('.artist-card').forEach(card => {
+      card.addEventListener('click', function() {
+        this.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 150);
+      });
+    });
+  </script>
+</body>
+</html>

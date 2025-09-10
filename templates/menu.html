@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Melodify - Your Music Profile</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: white;
+      overflow-x: hidden;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .profile-section {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .profile-pic {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      transition: transform 0.3s ease;
+    }
+
+    .profile-pic:hover {
+      transform: scale(1.1);
+    }
+
+    .username {
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    .logout-btn {
+      background: rgba(255, 107, 107, 0.8);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 25px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255, 107, 107, 1);
+      transform: translateY(-2px);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      padding: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .chart-section {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      animation: slideInLeft 0.8s ease-out;
+    }
+
+    .chart-title {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      color: #ffd700;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
+
+    .navigation-section {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      animation: slideInRight 0.8s ease-out;
+    }
+
+    .nav-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 2rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .nav-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .nav-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .nav-card:hover::before {
+      left: 100%;
+    }
+
+    .nav-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .nav-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-description {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .floating-elements {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .floating-element {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) scale(1); opacity: 0.3; }
+      50% { transform: translateY(-20px) scale(1.5); opacity: 0.8; }
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+      }
+      
+      .header {
+        padding: 1rem;
+      }
+      
+      .chart-container {
+        height: 300px;
+      }
+    }
+
+    .rating-section {
+      margin: 2rem 0;
+      animation: slideInUp 0.8s ease-out 0.2s both;
+    }
+
+    .rating-card {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.2));
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 2rem;
+      border: 2px solid rgba(255, 215, 0, 0.3);
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(255, 215, 0, 0.2);
+    }
+
+    .rating-title {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #ffd700;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+
+    .rating-display {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .grade {
+      font-size: 4rem;
+      font-weight: 900;
+      color: #ffd700;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .score {
+      font-size: 2rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.5rem 1rem;
+      border-radius: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .rating-description {
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+  </style>
+</head>
+<body>
+  <div class="floating-elements">
+    <div class="floating-element" style="top: 10%; left: 5%; animation-delay: 0s;"></div>
+    <div class="floating-element" style="top: 20%; right: 10%; animation-delay: 1s;"></div>
+    <div class="floating-element" style="top: 60%; left: 15%; animation-delay: 2s;"></div>
+    <div class="floating-element" style="top: 80%; right: 20%; animation-delay: 3s;"></div>
+    <div class="floating-element" style="top: 40%; left: 80%; animation-delay: 4s;"></div>
+  </div>
+
+  <header class="header">
+    <div class="profile-section">
+      {% if profile_pic %}
+        <img src="{{ profile_pic }}" alt="Profile Picture" class="profile-pic">
+      {% endif %}
+      <span class="username">{{ display_name }}</span>
+    </div>
+    <button class="logout-btn" onclick="window.location.href='/logout'">🚪 Logout</button>
+  </header>
+
+  <main class="main-content">
+    <section class="chart-section">
+      <h2 class="chart-title">🎵 Your Music DNA</h2>
+      <div class="chart-container">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </section>
+
+    <section class="rating-section">
+      <div class="rating-card">
+        <h3 class="rating-title">🎖️ Your Music Listener Rating</h3>
+        <div class="rating-display">
+          <div class="grade">{{ listener_grade }}</div>
+        </div>
+        <p class="rating-description">{{ rating_description }}</p>
+      </div>
+    </section>
+
+    <section class="navigation-section">
+      <div class="nav-card" onclick="window.location.href='/top-artists'">
+        <span class="nav-icon">🎤</span>
+        <h3 class="nav-title">Top Artists</h3>
+        <p class="nav-description">Discover your most-listened artists and their influence on your taste</p>
+      </div>
+
+      <div class="nav-card" onclick="window.location.href='/top-tracks'">
+        <span class="nav-icon">🎵</span>
+        <h3 class="nav-title">Top Tracks</h3>
+        <p class="nav-description">Explore your favorite songs and the stories behind them</p>
+      </div>
+
+      <div class="nav-card" onclick="window.location.href='/top-genres'">
+        <span class="nav-icon">🎭</span>
+        <h3 class="nav-title">Top Genres</h3>
+        <p class="nav-description">See which musical styles resonate most with your soul</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Radar Chart
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    
+    const labels = JSON.parse('{{ radar_labels | safe }}');
+    const values = JSON.parse('{{ radar_values | safe }}');
+    
+    // Format labels for display
+    const formattedLabels = labels.map(label => 
+      label.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+    );
+
+    new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: formattedLabels,
+        datasets: [{
+          label: 'Your Music Taste',
+          data: values,
+          backgroundColor: 'rgba(255, 215, 0, 0.2)',
+          borderColor: 'rgba(255, 215, 0, 1)',
+          borderWidth: 3,
+          pointBackgroundColor: 'rgba(255, 215, 0, 1)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 6,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            beginAtZero: true,
+            max: 100,
+            ticks: {
+              stepSize: 20,
+              color: 'rgba(255, 255, 255, 0.8)',
+              font: {
+                size: 12
+              }
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.2)'
+            },
+            angleLines: {
+              color: 'rgba(255, 255, 255, 0.2)'
+            },
+            pointLabels: {
+              color: 'rgba(255, 255, 255, 0.9)',
+              font: {
+                size: 14,
+                weight: 'bold'
+              }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        elements: {
+          line: {
+            tension: 0.4
+          }
+        }
+      }
+    });
+
+    // Add hover effects to navigation cards
+    document.querySelectorAll('.nav-card').forEach(card => {
+      card.addEventListener('mouseenter', function() {
+        this.style.transform = 'translateY(-5px) scale(1.02)';
+      });
+      
+      card.addEventListener('mouseleave', function() {
+        this.style.transform = 'translateY(0) scale(1)';
+      });
+    });
+
+    // Add click animation
+    document.querySelectorAll('.nav-card').forEach(card => {
+      card.addEventListener('click', function() {
+        this.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 150);
+      });
+    });
+  </script>
+</body>
+</html>
