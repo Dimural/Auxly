@@ -5,6 +5,8 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import json
 from dotenv import load_dotenv
+from spotipy.cache_handler import FlaskSessionCacheHandler
+
 
 load_dotenv()
 #DEFINING CONSTANTS
@@ -251,32 +253,53 @@ def get_rating_description(grade):
     }
     return descriptions.get(grade, "Unknown rating")
 
-@app.route("/")
-def index():
-    session.clear()
-    return render_template("landing.html")
-
-@app.route("/login")
-def login():
-    session.clear()
-    auth_url = sp_oauth.get_authorize_url() + "&show_dialog=true"
-    return redirect(auth_url)
-
-@app.route("/callback")
-def callback():
-    sp_oauth = SpotifyOAuth(
+# helper to build an auth manager tied to THIS user's Flask session
+def get_auth_manager():
+    cache_handler = FlaskSessionCacheHandler(session)
+    return SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        show_dialog=True
+        cache_handler=cache_handler,  # <-- per-user cache
+        show_dialog=True,             # always force the account chooser
     )
 
-    code = request.args.get("code")
-    token_info = sp_oauth.get_access_token(code)
-    session["token_info"] = token_info
+def get_sp():
+    auth_manager = get_auth_manager()
+    # If there is no valid token in this session, send to login
+    if not auth_manager.validate_token(auth_manager.cache_handler.get_cached_token()):
+        return None
+    return spotipy.Spotify(auth_manager=auth_manager)
 
-    sp = spotipy.Spotify(auth=token_info['access_token'])
+# ---------- Routes ----------
+
+@app.route("/")
+def index():
+    # Optional: don't nuke session automatically if you want persistence
+    return render_template("landing.html")
+
+@app.route("/login")
+def login():
+    # Clear our app session (and any per-user cached token in it)
+    auth_manager = get_auth_manager()
+    # ensure a clean login by deleting any cached token in THIS session
+    try:
+        auth_manager.cache_handler.delete_cached_token()
+    except Exception:
+        pass
+    session.clear()
+    auth_manager = get_auth_manager()  # rebuild after clear
+    return redirect(auth_manager.get_authorize_url())
+
+@app.route("/callback")
+def callback():
+    auth_manager = get_auth_manager()
+    code = request.args.get("code")
+    # This stores token info in the Flask session via the cache handler
+    auth_manager.get_access_token(code)
+
+    sp = spotipy.Spotify(auth_manager=auth_manager)
     profile = sp.current_user()
 
     session["display_name"] = profile.get("display_name", "Spotify User")
@@ -287,11 +310,10 @@ def callback():
 
 @app.route("/menu")
 def menu():
-    token_info = session.get("token_info")
-    if not token_info:
+    sp = get_sp()
+    if sp is None:
         return redirect(url_for("login"))
 
-    sp = spotipy.Spotify(auth=token_info['access_token'])
     profile = sp.current_user()
     display_name = profile.get("display_name", "Spotify User")
     images = profile.get("images", [])
@@ -301,49 +323,47 @@ def menu():
     top_artists = sp.current_user_top_artists(limit=50, time_range="long_term")["items"]
     user_genres = []
     for artist in top_artists:
-        user_genres.extend(artist["genres"])
+        user_genres.extend(artist.get("genres", []))
 
     # Categorize and normalize genres for radar chart
     categorized_genres = categorize_genres(user_genres)
     radar_data = normalize_genre_scores(categorized_genres)
-    
+
     # Calculate listener rating
     listener_grade = calculate_listener_rating(profile, categorized_genres)
     rating_description = get_rating_description(listener_grade)
-    
+
     # Convert to format suitable for Chart.js
     radar_labels = list(radar_data.keys())
     radar_values = list(radar_data.values())
 
-    return render_template("menu.html",
+    return render_template(
+        "menu.html",
         display_name=display_name,
         profile_pic=profile_pic,
         radar_labels=json.dumps(radar_labels),
         radar_values=json.dumps(radar_values),
         listener_grade=listener_grade,
-        listener_score="N/A",  # Since we're not returning score anymore
+        listener_score="N/A",
         rating_description=rating_description
     )
 
 @app.route("/top-artists")
 def top_artists():
     time_range = request.args.get("range", "short_term")
-    token_info = session.get("token_info")
-    if not token_info:
+    sp = get_sp()
+    if sp is None:
         return redirect(url_for("login"))
-    
-    sp = spotipy.Spotify(auth=token_info['access_token'])
+
     raw_artists = sp.current_user_top_artists(limit=10, time_range=time_range)["items"]
-    
-    # Include artist images from Spotify API
+
     artists = []
     for artist in raw_artists:
         artist_data = {
             "name": artist["name"],
             "image": None
         }
-        # Get the first available image (usually the highest quality)
-        if artist.get("images") and len(artist["images"]) > 0:
+        if artist.get("images"):
             artist_data["image"] = artist["images"][0]["url"]
         artists.append(artist_data)
 
@@ -352,14 +372,12 @@ def top_artists():
 @app.route("/top-tracks")
 def top_tracks():
     time_range = request.args.get("range", "short_term")
-    token_info = session.get("token_info")
-    if not token_info:
+    sp = get_sp()
+    if sp is None:
         return redirect(url_for("login"))
-    
-    sp = spotipy.Spotify(auth=token_info['access_token'])
+
     raw_tracks = sp.current_user_top_tracks(limit=10, time_range=time_range)["items"]
-    
-    # Include track info and album images
+
     tracks = []
     for track in raw_tracks:
         track_data = {
@@ -367,8 +385,7 @@ def top_tracks():
             "artist": track["artists"][0]["name"],
             "album_image": None
         }
-        # Get album image (more relevant for tracks)
-        if track.get("album", {}).get("images") and len(track["album"]["images"]) > 0:
+        if track.get("album", {}).get("images"):
             track_data["album_image"] = track["album"]["images"][0]["url"]
         tracks.append(track_data)
 
@@ -377,22 +394,20 @@ def top_tracks():
 @app.route("/top-genres")
 def top_genres():
     time_range = request.args.get("range", "short_term")
-    token_info = session.get("token_info")
-    if not token_info:
+    sp = get_sp()
+    if sp is None:
         return redirect(url_for("login"))
-    
-    sp = spotipy.Spotify(auth=token_info['access_token'])
+
     artists = sp.current_user_top_artists(limit=20, time_range=time_range)["items"]
 
     genre_counts = {}
     for artist in artists:
-        for genre in artist["genres"]:
+        for genre in artist.get("genres", []):
             genre_counts[genre] = genre_counts.get(genre, 0) + 1
 
     sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)
     genres = []
-    
-    for genre, count in sorted_genres[:10]:
+    for genre, _count in sorted_genres[:10]:
         genres.append({
             "name": genre,
             "icon": get_genre_icon(genre)
@@ -402,6 +417,11 @@ def top_genres():
 
 @app.route("/logout")
 def logout():
+    # Remove the cached token in THIS session and clear session
+    try:
+        get_auth_manager().cache_handler.delete_cached_token()
+    except Exception:
+        pass
     session.clear()
     return """
         <p>You have been logged out.</p>
@@ -409,6 +429,11 @@ def logout():
     """
 
 if __name__ == "__main__":
+    # Optional: clear any old global .cache file if it exists (legacy runs)
+    try:
+        os.remove(".cache")
+    except OSError:
+        pass
     app.run(debug=True)
     
 
