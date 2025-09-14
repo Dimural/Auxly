@@ -6,6 +6,8 @@ from spotipy.oauth2 import SpotifyOAuth
 import json
 from dotenv import load_dotenv
 from spotipy.cache_handler import FlaskSessionCacheHandler
+from collections import Counter
+import math
 
 
 load_dotenv()
@@ -31,229 +33,7 @@ sp_oauth = SpotifyOAuth(
     scope=SCOPE
 )
 
-def categorize_genres(genres):
-    """Categorize specific genres into broader categories"""
-    genre_mapping = {
-        'rock': ['rock', 'alternative rock', 'indie rock', 'hard rock', 'classic rock', 'punk rock', 'pop rock', 'folk rock', 'psychedelic rock', 'progressive rock', 'garage rock', 'post-rock', 'math rock', 'shoegaze', 'grunge', 'metal', 'heavy metal', 'death metal', 'black metal', 'thrash metal', 'power metal', 'progressive metal', 'nu metal', 'industrial metal', 'folk metal', 'symphonic metal'],
-        'pop': ['pop', 'pop rock', 'synthpop', 'electropop', 'indie pop', 'dream pop', 'jangle pop', 'power pop', 'teen pop', 'bubblegum pop', 'art pop', 'avant-pop', 'experimental pop', 'baroque pop', 'chamber pop', 'orchestral pop', 'psychedelic pop', 'sunshine pop', 'yacht rock'],
-        'electronic': ['electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'drum and bass', 'ambient', 'idm', 'breakbeat', 'garage', 'jungle', 'hardcore', 'industrial', 'synthwave', 'vaporwave', 'future bass', 'trap', 'progressive house', 'deep house', 'acid house', 'electro', 'eurodance', 'europop', 'euro house', 'euro trance', 'euro techno'],
-        'hip_hop': ['hip hop', 'rap', 'trap', 'conscious hip hop', 'alternative hip hop', 'experimental hip hop', 'underground hip hop', 'east coast hip hop', 'west coast hip hop', 'southern hip hop', 'midwest hip hop', 'battle rap', 'horrorcore', 'gangsta rap', 'political hip hop', 'jazz rap', 'funk rap', 'soul rap', 'r&b', 'neo soul', 'contemporary r&b', 'alternative r&b'],
-        'jazz': ['jazz', 'bebop', 'cool jazz', 'hard bop', 'modal jazz', 'free jazz', 'avant-garde jazz', 'post-bop', 'smooth jazz', 'fusion', 'acid jazz', 'nu jazz', 'latin jazz', 'afro-cuban jazz', 'bossa nova', 'samba', 'tango', 'flamenco', 'fado', 'reggae', 'ska', 'dub', 'dancehall', 'calypso', 'soca'],
-        'classical': ['classical', 'baroque', 'romantic', 'modern classical', 'contemporary classical', 'minimalism', 'impressionism', 'expressionism', 'serialism', 'aleatoric', 'chance music', 'ambient', 'new age', 'world music', 'folk', 'country', 'bluegrass', 'americana', 'roots rock', 'blues', 'delta blues', 'chicago blues', 'texas blues', 'memphis blues', 'piedmont blues', 'country blues', 'electric blues', 'rhythm and blues', 'soul', 'motown', 'stax', 'atlantic', 'philadelphia soul', 'chicago soul', 'memphis soul', 'southern soul', 'northern soul', 'blue-eyed soul', 'brown-eyed soul', 'neo soul', 'alternative soul', 'psychedelic soul', 'funk', 'p-funk', 'g-funk', 'funk rock', 'funk metal', 'funk punk', 'funk pop', 'funk soul', 'funk jazz', 'funk blues', 'funk country', 'funk folk', 'funk classical', 'funk electronic', 'funk hip hop', 'funk reggae', 'funk ska', 'funk punk', 'funk metal', 'funk rock', 'funk pop', 'funk soul', 'funk jazz', 'funk blues', 'funk country', 'funk folk', 'funk classical', 'funk electronic', 'funk hip hop', 'funk reggae', 'funk ska']
-    }
-    
-    categorized = {category: 0 for category in genre_mapping.keys()}
-    
-    for genre in genres:
-        genre_lower = genre.lower()
-        for category, subgenres in genre_mapping.items():
-            if any(subgenre in genre_lower for subgenre in subgenres):
-                categorized[category] += 1
-                break
-    
-    return categorized
-
-def normalize_genre_scores(categorized_genres):
-    """Normalize genre scores to create a balanced radar chart"""
-    max_score = max(categorized_genres.values()) if any(categorized_genres.values()) else 1
-    if max_score == 0:
-        return {k: 0 for k in categorized_genres.keys()}
-    
-    # Normalize to 0-100 scale with some minimum values for visual appeal
-    normalized = {}
-    for genre, score in categorized_genres.items():
-        if score > 0:
-            # Create a more dynamic range: minimum 20, maximum 100
-            normalized[genre] = 20 + (score / max_score) * 80
-        else:
-            normalized[genre] = 5  # Small base value for visual appeal
-    
-    return normalized
-
-def get_genre_icon(genre_name):
-    """Get an appropriate icon for a genre"""
-    genre_lower = genre_name.lower()
-    
-    # Rock and Metal genres
-    if any(word in genre_lower for word in ['rock', 'metal', 'punk', 'grunge', 'hardcore']):
-        return '🤘'
-    # Electronic genres
-    elif any(word in genre_lower for word in ['electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'synthwave']):
-        return '⚡'
-    # Hip Hop and Rap
-    elif any(word in genre_lower for word in ['hip hop', 'rap', 'trap', 'r&b', 'soul']):
-        return '🎤'
-    # Pop genres
-    elif any(word in genre_lower for word in ['pop', 'synthpop', 'electropop', 'indie pop']):
-        return '💫'
-    # Jazz and Blues
-    elif any(word in genre_lower for word in ['jazz', 'blues', 'bebop', 'smooth jazz']):
-        return '🎷'
-    # Classical and Orchestral
-    elif any(word in genre_lower for word in ['classical', 'orchestral', 'symphonic', 'baroque', 'romantic']):
-        return '🎼'
-    # Country and Folk
-    elif any(word in genre_lower for word in ['country', 'folk', 'bluegrass', 'americana']):
-        return '🌾'
-    # Reggae and World
-    elif any(word in genre_lower for word in ['reggae', 'ska', 'dub', 'world music', 'latin']):
-        return '🌍'
-    # Funk and Disco
-    elif any(word in genre_lower for word in ['funk', 'disco', 'groove']):
-        return '🕺'
-    # Alternative and Indie
-    elif any(word in genre_lower for word in ['alternative', 'indie', 'experimental']):
-        return '🎭'
-    # Default icon
-    else:
-        return '🎵'
-
-def calculate_listener_rating(profile, categorized_genres):
-    """Calculate a music listener rating from S+ to D- based on listening habits"""
-    
-    # Base score starts at 0 (much more challenging)
-    score = 0
-    
-    # Factor 1: Genre Diversity (0-20 points)
-    # Only count genres with substantial listening (3+ artists)
-    active_genres = sum(1 for count in categorized_genres.values() if count >= 3)
-    max_genres = len(categorized_genres)
-    if max_genres > 0:
-        genre_diversity_score = (active_genres / max_genres) * 20
-        score += genre_diversity_score
-    
-    # Factor 2: Listening Depth (0-30 points)
-    # This is the most important factor - how much they actually listen
-    total_artist_count = sum(categorized_genres.values())
-    if total_artist_count >= 50:
-        depth_score = 30  # Heavy listener
-    elif total_artist_count >= 30:
-        depth_score = 25  # Regular listener
-    elif total_artist_count >= 20:
-        depth_score = 20  # Moderate listener
-    elif total_artist_count >= 15:
-        depth_score = 15  # Light listener
-    elif total_artist_count >= 10:
-        depth_score = 10  # Very light listener
-    elif total_artist_count >= 5:
-        depth_score = 5   # Minimal listener
-    else:
-        depth_score = 0   # Barely listens
-    score += depth_score
-    
-    # Factor 3: Genre Balance (0-25 points)
-    # Check if user has a good mix of different genre categories
-    genre_counts = list(categorized_genres.values())
-    if genre_counts and len(genre_counts) > 1:
-        # Calculate standard deviation to measure balance
-        mean_count = sum(genre_counts) / len(genre_counts)
-        variance = sum((x - mean_count) ** 2 for x in genre_counts) / len(genre_counts)
-        std_dev = variance ** 0.5
-        
-        # Lower standard deviation = more balanced listening
-        if std_dev == 0:
-            balance_score = 25  # Perfect balance
-        else:
-            # Normalize: lower std dev gets higher score
-            max_std = max(genre_counts)
-            balance_score = max(0, 25 - (std_dev / max_std) * 15)
-        score += balance_score
-    
-    # Factor 4: Genre Exploration (0-15 points)
-    # Bonus for having multiple genres with decent counts (5+ artists)
-    substantial_genres = sum(1 for count in categorized_genres.values() if count >= 5)
-    exploration_score = min(15, substantial_genres * 3)
-    score += exploration_score
-    
-    # Factor 5: Specialization Penalty (-10 to +10 points)
-    # Penalize if they only listen to 1-2 genres heavily
-    max_genre_count = max(categorized_genres.values()) if categorized_genres.values() else 0
-    active_genre_count = sum(1 for count in categorized_genres.values() if count > 0)
-    
-    if active_genre_count <= 2 and max_genre_count >= 8:
-        # Heavy listener but very limited genres
-        specialization_score = -10
-    elif active_genre_count <= 3 and max_genre_count >= 6:
-        # Moderate listener but limited genres
-        specialization_score = -5
-    elif active_genre_count >= 4 and max_genre_count >= 5:
-        # Good variety and depth
-        specialization_score = 10
-    elif active_genre_count >= 3 and max_genre_count >= 3:
-        # Decent variety
-        specialization_score = 5
-    else:
-        specialization_score = 0
-    
-    score += specialization_score
-    
-    # Factor 6: Minimum Threshold Penalty
-    # If they barely listen to music, cap their score
-    if total_artist_count < 10:
-        score = min(score, 30)  # Cap at D+ for very light listeners
-    elif total_artist_count < 20:
-        score = min(score, 50)  # Cap at C for light listeners
-    
-    # Ensure score is within bounds
-    score = max(0, min(100, score))
-    
-    # Convert score to letter grade (much more challenging)
-    if score >= 98:
-        return "S+"
-    elif score >= 95:
-        return "S"
-    elif score >= 92:
-        return "S-"
-    elif score >= 88:
-        return "A+"
-    elif score >= 84:
-        return "A"
-    elif score >= 80:
-        return "A-"
-    elif score >= 76:
-        return "B+"
-    elif score >= 73:
-        return "B"
-    elif score >= 70:
-        return "B-"
-    elif score >= 68:
-        return "C+"
-    elif score >= 65:
-        return "C"
-    elif score >= 62:
-        return "C-"
-    elif score >= 59:
-        return "D+"
-    elif score >= 56:
-        return "D"
-    elif score >= 53:
-        return "D-"
-    else:
-        return "F"
-
-def get_rating_description(grade):
-    """Get a description for the rating grade"""
-    descriptions = {
-        "S+": "Legendary Music Explorer - You're a true music connoisseur with exceptional taste and depth!",
-        "S": "Elite Music Enthusiast - Your musical knowledge and diversity are outstanding!",
-        "S-": "Superior Music Lover - You have excellent taste and explore music actively!",
-        "A+": "Excellent Music Explorer - You're very well-rounded with great listening habits!",
-        "A": "Great Music Listener - You have diverse taste and listen to music regularly!",
-        "A-": "Very Good Music Fan - You explore music actively and have good variety!",
-        "B+": "Good Music Listener - You have solid musical taste and decent variety!",
-        "B": "Decent Music Fan - You're on the right track with room to grow!",
-        "B-": "Okay Music Listener - You have potential but need to explore more!",
-        "C+": "Average Music Fan - You listen to music but could diversify more!",
-        "C": "Basic Music Listener - Time to expand your musical horizons!",
-        "C-": "Limited Music Fan - Try branching out to new genres!",
-        "D+": "Casual Listener - Music could be more important in your life!",
-        "D": "Occasional Listener - Time to discover the world of music!",
-        "D-": "Music Newcomer - Welcome to the wonderful world of music!",
-        "F": "Music Beginner - Start your musical journey today!"
-    }
-    return descriptions.get(grade, "Unknown rating")
-
-# helper to build an auth manager tied to THIS user's Flask session
+# ---------- Auth helpers (unchanged) ----------
 def get_auth_manager():
     cache_handler = FlaskSessionCacheHandler(session)
     return SpotifyOAuth(
@@ -261,47 +41,215 @@ def get_auth_manager():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_handler=cache_handler,  # <-- per-user cache
-        show_dialog=True,             # always force the account chooser
+        cache_handler=cache_handler,
+        show_dialog=True,
     )
 
 def get_sp():
     auth_manager = get_auth_manager()
-    # If there is no valid token in this session, send to login
     if not auth_manager.validate_token(auth_manager.cache_handler.get_cached_token()):
         return None
     return spotipy.Spotify(auth_manager=auth_manager)
 
-# ---------- Routes ----------
+# ---------- Icons (kept) ----------
+def get_genre_icon(genre_name):
+    genre_lower = genre_name.lower()
+    if any(word in genre_lower for word in ['rock', 'metal', 'punk', 'grunge', 'hardcore']):
+        return '🤘'
+    elif any(word in genre_lower for word in ['electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'ambient', 'synthwave']):
+        return '⚡'
+    elif any(word in genre_lower for word in ['hip hop', 'rap', 'trap', 'r&b', 'soul']):
+        return '🎤'
+    elif any(word in genre_lower for word in ['pop', 'synthpop', 'electropop', 'indie pop']):
+        return '💫'
+    elif any(word in genre_lower for word in ['jazz', 'blues', 'bebop', 'smooth jazz']):
+        return '🎷'
+    elif any(word in genre_lower for word in ['classical', 'orchestral', 'symphonic', 'baroque', 'romantic']):
+        return '🎼'
+    elif any(word in genre_lower for word in ['country', 'folk', 'bluegrass', 'americana']):
+        return '🌾'
+    elif any(word in genre_lower for word in ['reggae', 'ska', 'dub', 'world music', 'latin']):
+        return '🌍'
+    elif any(word in genre_lower for word in ['funk', 'disco', 'groove']):
+        return '🕺'
+    elif any(word in genre_lower for word in ['alternative', 'indie', 'experimental']):
+        return '🎭'
+    else:
+        return '🎵'
 
+# =========================
+# Super-genre RADAR + GRADE
+# =========================
+
+# 1) Roll-up rules: map micro-genres to broader buckets
+SUPER_GENRE_RULES = {
+    "Pop": ["pop", "synthpop", "electropop", "dance pop", "k-pop", "kpop", "j-pop", "jpop"],
+    "Hip-Hop/Rap": ["hip hop", "rap", "trap", "drill", "boom bap"],
+    "R&B/Soul": ["r&b", "neo soul", "soul", "contemporary r&b"],
+    "Rock": ["rock", "punk", "emo", "grunge", "shoegaze", "garage"],
+    "Metal": ["metal", "core", "grind", "doom", "sludge", "deathcore"],
+    "Indie/Alt": ["indie", "alt", "bedroom pop", "lo-fi", "lofi", "dreampop", "dream pop"],
+    "Electronic": ["electronic", "edm", "house", "techno", "trance", "dubstep",
+                   "dnb", "drum and bass", "ambient", "synthwave", "future bass", "garage"],
+    "Latin": ["latin", "reggaeton", "salsa", "bachata", "cumbia", "mariachi", "regional mexican"],
+    "Reggae/Dancehall": ["reggae", "dancehall", "ska", "dub"],
+    "Country/Folk": ["country", "americana", "bluegrass", "folk", "singer-songwriter"],
+    "Jazz/Blues": ["jazz", "bebop", "bossa", "swing", "fusion", "blues"],
+    "Classical/Score": ["classical", "baroque", "romantic", "orchestral", "soundtrack", "score"],
+    "World/Global": ["afro", "afrobeats", "afrobeat", "afro-house", "afro pop", "afropop",
+                     "bollywood", "desi", "c-pop", "mandopop", "cantopop", "fado", "flamenco", "klezmer", "world", "global"],
+}
+
+def super_genre_for(genre: str) -> str:
+    g = genre.lower()
+    for bucket, keywords in SUPER_GENRE_RULES.items():
+        for kw in keywords:
+            if kw in g:
+                return bucket
+    if "r&b" in g or "soul" in g:
+        return "R&B/Soul"
+    if "hip" in g and "hop" in g:
+        return "Hip-Hop/Rap"
+    return "Indie/Alt"  # safe default if nothing matched
+
+# 2) Collect way more listening: short/medium/long + top-tracks artists
+def collect_user_genre_counts(sp):
+    """
+    Returns (Counter of super-genres, unique_artist_count).
+    Aggregates:
+      - current_user_top_artists across short/medium/long (weighted by recency)
+      - artists from current_user_top_tracks across the same ranges (lower weight)
+    """
+    weights = {"short_term": 1.0, "medium_term": 0.8, "long_term": 0.6}
+    ranges = ["short_term", "medium_term", "long_term"]
+
+    super_counts = Counter()
+    seen_artists = set()
+
+    # Top ARTISTS
+    for rng in ranges:
+        items = sp.current_user_top_artists(limit=50, time_range=rng).get("items", [])
+        for a in items:
+            aid = a.get("id")
+            if aid:
+                seen_artists.add(aid)
+            for gen in a.get("genres", []):
+                super_counts[super_genre_for(gen)] += weights[rng]
+
+    # Top TRACKS → artist genres (only if not already seen)
+    for rng in ranges:
+        tracks = sp.current_user_top_tracks(limit=50, time_range=rng).get("items", [])
+        for t in tracks:
+            for a in t.get("artists", []):
+                aid = a.get("id")
+                if not aid or aid in seen_artists:
+                    continue
+                try:
+                    art = sp.artist(aid)
+                    seen_artists.add(aid)
+                    for gen in art.get("genres", []):
+                        super_counts[super_genre_for(gen)] += 0.6 * weights[rng]
+                except Exception:
+                    pass
+
+    return super_counts, len(seen_artists)
+
+# 3) Build a readable radar: top-8 + Other; sqrt scaling
+def build_radar_from_counts(super_counts: Counter, top_k: int = 8):
+    common = super_counts.most_common(top_k)
+    kept_labels = [name for name, _ in common]
+    other_sum = sum(c for g, c in super_counts.items() if g not in kept_labels)
+
+    values = []
+    max_val = max([c for _, c in common] + ([other_sum] if other_sum > 0 else [1]))
+    for _, c in common:
+        values.append(5 + 95 * (math.sqrt(c / max_val)))  # 5..100
+    if other_sum > 0:
+        kept_labels.append("Other")
+        values.append(5 + 95 * (math.sqrt(other_sum / max_val)))
+
+    return kept_labels, values
+
+# 4) New letter grade: diversity (entropy) + depth (unique artists) + activity
+def grade_from_genres(super_counts: Counter, unique_artist_count: int):
+    total = sum(super_counts.values())
+    if total == 0:
+        return "F", "We couldn’t detect enough listening to evaluate."
+
+    probs = [c / total for c in super_counts.values()]
+    H = -sum(p * math.log(p + 1e-12) for p in probs)
+    H_max = math.log(len(super_counts)) if len(super_counts) > 0 else 1.0
+    diversity = (H / H_max) if H_max > 0 else 0.0
+
+    depth = min(1.0, math.log(1 + unique_artist_count) / math.log(1 + 100))
+    activity = min(1.0, total / 200.0)
+
+    score = 100 * (0.45 * diversity + 0.35 * depth + 0.20 * activity)
+    score = max(0, min(100, score))
+
+    def to_letter(s):
+        if s >= 98: return "S+"
+        if s >= 95: return "S"
+        if s >= 92: return "S-"
+        if s >= 88: return "A+"
+        if s >= 84: return "A"
+        if s >= 80: return "A-"
+        if s >= 76: return "B+"
+        if s >= 73: return "B"
+        if s >= 70: return "B-"
+        if s >= 68: return "C+"
+        if s >= 65: return "C"
+        if s >= 62: return "C-"
+        if s >= 59: return "D+"
+        if s >= 56: return "D"
+        if s >= 53: return "D-"
+        return "F"
+
+    grade = to_letter(score)
+    descriptions = {
+        "S+": "Legendary explorer—huge variety and depth.",
+        "S":  "Elite listener—balanced and deep catalog.",
+        "S-": "Superior taste—diverse and engaged.",
+        "A+": "Excellent range with strong depth.",
+        "A":  "Great variety and consistent listening.",
+        "A-": "Very good mix and habits.",
+        "B+": "Good variety; keep exploring.",
+        "B":  "Decent range; room to grow.",
+        "B-": "Some variety; try new corners.",
+        "C+": "Average diversity; explore more.",
+        "C":  "Basic listening patterns.",
+        "C-": "Limited genres; branch out.",
+        "D+": "Casual listener; discover more.",
+        "D":  "Occasional listening.",
+        "D-": "New to music; welcome!",
+        "F":  "Not enough data to rate.",
+    }
+    return grade, descriptions.get(grade, "Unknown rating")
+
+# ---------- Routes ----------
 @app.route("/")
 def index():
-    # Optional: don't nuke session automatically if you want persistence
     return render_template("landing.html")
 
 @app.route("/login")
 def login():
-    # Clear our app session (and any per-user cached token in it)
-    auth_manager = get_auth_manager()
-    # ensure a clean login by deleting any cached token in THIS session
+    # Clear any cached token inside THIS session so the user can switch accounts
     try:
-        auth_manager.cache_handler.delete_cached_token()
+        get_auth_manager().cache_handler.delete_cached_token()
     except Exception:
         pass
     session.clear()
-    auth_manager = get_auth_manager()  # rebuild after clear
+    auth_manager = get_auth_manager()
     return redirect(auth_manager.get_authorize_url())
 
 @app.route("/callback")
 def callback():
     auth_manager = get_auth_manager()
     code = request.args.get("code")
-    # This stores token info in the Flask session via the cache handler
-    auth_manager.get_access_token(code)
-
+    auth_manager.get_access_token(code)  # stores token in Flask session
     sp = spotipy.Spotify(auth_manager=auth_manager)
-    profile = sp.current_user()
 
+    profile = sp.current_user()
     session["display_name"] = profile.get("display_name", "Spotify User")
     images = profile.get("images", [])
     session["profile_pic"] = images[0]["url"] if images else None
@@ -319,23 +267,10 @@ def menu():
     images = profile.get("images", [])
     profile_pic = images[0]["url"] if images else None
 
-    # Get top artists and extract genres for radar chart
-    top_artists = sp.current_user_top_artists(limit=50, time_range="long_term")["items"]
-    user_genres = []
-    for artist in top_artists:
-        user_genres.extend(artist.get("genres", []))
-
-    # Categorize and normalize genres for radar chart
-    categorized_genres = categorize_genres(user_genres)
-    radar_data = normalize_genre_scores(categorized_genres)
-
-    # Calculate listener rating
-    listener_grade = calculate_listener_rating(profile, categorized_genres)
-    rating_description = get_rating_description(listener_grade)
-
-    # Convert to format suitable for Chart.js
-    radar_labels = list(radar_data.keys())
-    radar_values = list(radar_data.values())
+    # >>> NEW: richer aggregation + roll-up + radar + grade <<<
+    super_counts, unique_artist_count = collect_user_genre_counts(sp)
+    radar_labels, radar_values = build_radar_from_counts(super_counts, top_k=8)
+    listener_grade, rating_description = grade_from_genres(super_counts, unique_artist_count)
 
     return render_template(
         "menu.html",
@@ -417,7 +352,6 @@ def top_genres():
 
 @app.route("/logout")
 def logout():
-    # Remove the cached token in THIS session and clear session
     try:
         get_auth_manager().cache_handler.delete_cached_token()
     except Exception:
@@ -429,11 +363,9 @@ def logout():
     """
 
 if __name__ == "__main__":
-    # Optional: clear any old global .cache file if it exists (legacy runs)
     try:
         os.remove(".cache")
     except OSError:
         pass
     app.run(debug=True)
-    
 
